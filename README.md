@@ -5,7 +5,7 @@ Multinomial GLMs for Multinomial Response with An Example of Brain Injury Recove
 
 Frances Lin
 
-Description: We expand beyond binary (or binomial) reponse to focus on polychotomous (or multinomial) reponse. We first differentiate ordinal reponse from nominal reponse. Then, we briefly review multinomial distribution and latent variable. Next, we define the models and discuss model assumptions and estimation. Finally, we include an example of traumatic brain injury outcomes to illustrate how the proportional-odds cumulative logit model and the baseline-category logit model are used for estimation and prediction in practice.
+Description: We expand beyond binary (or binomial) response to focus on polychotomous (or multinomial) response. We first differentiate ordinal response from nominal response. Then, we briefly review multinomial distribution and latent variable. Next, we define the models and discuss model assumptions and estimation. Finally, we include an example of traumatic brain injury outcomes to illustrate how the proportional-odds cumulative logit model and the baseline-category logit model are used for estimation and prediction in practice.
 
 Documentation:
 
