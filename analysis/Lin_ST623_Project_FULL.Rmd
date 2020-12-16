@@ -402,9 +402,7 @@ AIC %>% pander
 
 With higher relative AIC values for all models, we have reason to suspect issues with model fit. Major issues with model fit are perhaps not having enough data points and only including dose as the only covariate. 
 
-Second, for the cumulative logit model, all except p-value for the coefficient that captures the difference of estimated odds between *low dose* (dose = 1) vs *placebo* (dose = 0) and between *medium dose* (dose = 2) vs *placebo* (dose = 0) are significant. In contrast, for the baseline-category logit model, more than one p-value for the coefficient and the slope are not significant.
-
-Third, additional constraint for model for ordinal response makes defining residuals challenging. An attempt to perform residual analysis using the `resids` function from the `sure` (SUrrogate REsiduals) package is included:  
+Second, additional constraint for model for ordinal response makes defining residuals challenging. An attempt to perform residual analysis using the `resids` function from the `sure` (SUrrogate REsiduals) package is included:  
 
 ```{r}
 # Obtain surrogate-based residuals
