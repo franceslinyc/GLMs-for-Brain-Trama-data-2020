@@ -1,0 +1,293 @@
+---
+title: "Multinomial GLMs for Multinomial Response with An Example of Brain Injury Recovery Stages"
+author: "Frances Lin"
+date: "Fall 2020"
+output: beamer_presentation
+---
+
+## Multinomial Distribution
+
+Binomial regression can be extended to multinomial regression for when response is multinomial (i.e. response has $> 2$ categories). 
+
+Here we assume that that the response ($Y_{ij}$)
+
+$$
+Y_{ij} \overset{iid}{\sim} Multinomial(n_i, \pi_{ij}) 
+$$
+
+where $\pi_{i1}$ is the probability of $y_i$ falls into the first ($j = 1$) category, $\pi_{i2}$ is the probability of $y_i$ falls into the second ($j = 2$) category, etc. 
+
+## Ordinal Regression for Ordinal Response
+
+It is important to distinguish between nominal response (i.e. response that does not follow specific order) and ordinal response (i.e. response that has specific order) for multinomial response. 
+
+Some models (e.g. cumulative logit model) can only be applied to ordinal response, whereas some models (e.g. baseline-category logit model) can be applied to both nominal and ordinal response.
+
+## Data: GOS For Traumatic Brain Injury Assessment
+
+```{r include=FALSE} 
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE) 
+```
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(MASS)
+library(pander)
+library(reshape2)
+library(VGAM)
+library(nnet)
+library(sure)
+```
+
+```{r}
+# Enter data as a flat table
+# the 1977 paper by Chuang‐Stein and Agresti 
+# also p. 207 of the Analysis of ordinal categorical data
+trama_flat <- tibble(
+  dose = c("placebo", "low", "med", "high"),  
+  
+  death = c(59, 48, 44, 43), 
+  veget = c(25, 21, 14, 4),
+  major = c(46, 44, 54, 49), 
+  minor = c(48, 47, 64, 58), 
+  recovery = c(32, 30, 31, 41), 
+)
+```
+
+Data were obtained from the 1977 paper by Chuang‐Stein and Agresti.The Glasgow Outcome Scale (GOS) is a scale that is commonly used for traumatic brain injury assessment. 
+
+GOS is the response, and outcome is ordinal with ordered categories: *death, vegetative state, major disability, minor disability,* and *good recovery*. Intravenous dose is the covariate, and dose is categorical with four levels: *placebo, low dose, medium dose*, and *high dose*. 
+
+```{r}
+# View data
+trama_flat %>% pander
+```
+
+## Initial Analysis 
+
+Initial analysis shows that the *placebo* group (title = 0) has a higher relative proportions of patients whose outcomes fall into the *death* category, and the *high dose* group (title = 3) has a higher relative proportions of patients whose outcomes fall into the *good recovery* category. 
+
+```{r}
+# Prep data
+# p. 207 of the Analysis of ordinal categorical data
+trama <- tibble(
+  state = rep(c("death", 
+                "veget", 
+                "major", 
+                "minor", 
+                "recovery"), 4), 
+  
+  dose = c(rep(0, 5),   #
+           rep(1, 5),    
+           rep(2, 5),   
+           rep(3, 5)),  
+
+  count = c(59, 25, 46, 48, 32, 
+            48, 21, 44, 47, 30, 
+            44, 14, 54, 64, 31, 
+            43,  4, 49, 58, 41)
+)
+```
+
+```{r}
+# Change state to a factor with specified order
+trama <- trama %>%
+  mutate(
+    state = factor(state, levels = c("death", 
+                                     "veget", 
+                                     "major", 
+                                     "minor", 
+                                     "recovery"))
+  )
+```
+
+```{r}
+# Plot data
+plot <- ggplot(data = trama, aes(x = state, y = count, fill = state)) +
+  geom_bar(stat="identity") + 
+  scale_fill_brewer(palette="Purples") + # set color
+  facet_wrap(~ dose, ncol = 4) + 
+  theme(axis.ticks.x = element_blank(),  # remove x text and tick
+        axis.text.x = element_blank()) + 
+  labs(title = "Counts of Outcome by Dose Level", 
+       x = "outcome (or state)") + 
+  coord_fixed(ratio = 0.125) # shrink the plot  
+plot
+```
+
+## Model Fitting
+
+Fitting the cumulative link model with different link function (e.g. `probit`, `cloglog`), we see that the model with the `logit` link performs the best, but the difference is minimal. 
+
+```{r}
+# Fit the cumulative logit model 
+model_logit <- polr(state ~ factor(dose), weights = count, data = trama)
+
+# Calculate p-val
+# UCLA's Ordinal Logistic Regression | R Data Analysis Example
+ctable <- summary(model_logit)$coeff
+p_val <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+ctable <- cbind(ctable, "p value" = p_val)
+#ctable %>% pander
+#summary(model_logit) %>% pander
+```
+
+```{r}
+# Fit the cumulative link model w/ probit 
+model_probit <- polr(state ~ factor(dose), weights = count, data = trama, method = "probit")
+#AIC(model_probit) 
+```
+
+```{r}
+# Fit the cumulative link model w/ cloglog
+model_cloglog <- polr(state ~ factor(dose), weights = count, data = trama, method = "cloglog")
+#AIC(model_cloglog) 
+```
+
+```{r}
+# Obtain AIC 
+AIC <- cbind(AIC(model_logit), AIC(model_probit), AIC(model_cloglog))
+AIC <- as.data.frame(AIC)
+colnames(AIC) <- c("logit", "probit", "cloglog")
+rownames(AIC) <- c("AIC")
+AIC %>% pander
+```
+
+## Model Interpretation
+
+Exponentiating the coefficients and the intercepts, we conclude that
+
+1. all dose levels lead to favorable outcomes
+
+2. the odds of a patient being in the more favorable categories increases as dose level increases
+
+3. the estimated odds of outcome (y) for *low dose* (dose = 1) is 1.125 times the estimated odds for *placebo* (dose = 0), etc
+
+```{r}
+# Get odds by exp(beta)
+exp(model_logit$coeff) %>% pander
+```
+
+## Model Interpretation
+
+4. for the reference level *placebo* (dose = 0), the estimated odds of outcome falls into category 1 (*death*) versus all other categories is $0.399$, the estimated odds of outcome falls into category 1 (*death*) or category 2 (*vegetative state*) versus all other categories is $0.5956$, etc
+
+```{r}
+# Get odds by exp(alpha_i)
+exp(model_logit$zeta) %>% pander
+```
+
+The cumulative logit model is defined as
+$$
+logit (P(Y \leq j )) = \log (\frac{P(Y \leq j )} {1 - P(Y \leq j )}) = \log (\frac{\pi_j} {1 - \pi_j}) = X \beta, j = 1,2,... j
+$$
+
+## Prediction (Predicted Probability) 
+
+```{r}
+# Fitted (or predicted) values
+fitted_val <- model_logit$fitted[seq(1, 20, by = 5), ]
+fitted_val <- as.data.frame(fitted_val)
+fitted_val <- tibble(
+  dose = c("placebo", "low", "med", "high"),
+  death = fitted_val$death,
+  veget = fitted_val$veget,
+  major = fitted_val$major,
+  minor = fitted_val$minor,
+  recovery = fitted_val$recovery
+)
+fitted_val %>% pander
+
+# Check to see if rowSums to 1 
+#rowSums(fitted) %>% pander #good
+```
+
+```{r}
+# Reshape data for plotting
+fitted_melt <- melt(fitted_val, id.vars = "dose", 
+                    variable.name = "level", 
+                    value.name = "probability")
+#fitted_melt
+# Plot it 
+fitted_plot <- ggplot(fitted_melt, aes(x = dose, y = probability, group = level, color = level)) + 
+  geom_point() + 
+  geom_line(aes(linetype = level), size = 1) + 
+  scale_x_discrete(limits=c("placebo","low","med", "high")) + # reorder dose level
+  labs(title = "Predicted Probability of Outcome by Dose Level", y = "predicted value") + 
+  coord_fixed(ratio = 8) + # shrink the plot
+  scale_color_brewer(palette = "PuOr") # change color 
+fitted_plot
+```
+
+## Collapsing Categories
+
+Next, we collapse five (*death, veget, major, minor, recovery*) to three categories (*unfavorable, major, favorable*) and see that AIC value drops significantly. However, we should note that it is advisable to check literature or domain knowledge before collapsing categories, as it may sometimes result in loss of information or aggregation bias.
+
+```{r}
+#fct_collapse()
+trama_collapse <- tibble(
+  state = rep(c("unfavorable", 
+                "major", 
+                "favorale"), 4), 
+  
+  dose = c(rep(0, 3),   #
+           rep(1, 3),    
+           rep(2, 3),   
+           rep(3, 3)),  
+
+  count = c(59 + 25, 46, 48 + 32, 
+            48 + 21, 44, 47 + 30, 
+            44 + 14, 54, 64 + 31, 
+            43 + 4,  49, 58 + 41)
+)
+```
+
+```{r}
+# Change state to a factor with specified order
+trama_collapse <- trama_collapse %>%
+  mutate(
+    state = factor(state, levels = c("unfavorable", "major", "favorale"))
+  )
+```
+
+```{r}
+# Fit the cumulative logit model
+model_collapse <- polr(state ~ factor(dose), weights = count, data = trama_collapse)
+```
+
+```{r}
+AIC <- cbind(AIC(model_logit), AIC(model_collapse))
+AIC <- as.data.frame(AIC)
+colnames(AIC) <- c("logit", "logit_collapse")
+rownames(AIC) <- c("AIC")
+AIC %>% pander
+```
+
+## Discussion 
+
+Major issues with model fit are perhaps not having enough data points and only including dose as the only covariate, but here concludes the demonstration of fitting an ordinal regression for ordinal response. 
+
+```{r}
+# Obtain surrogate-based residuals
+# Plot Residuals vs Covariate and Normal Q-Q plots for the logit model (model_1)
+set.seed(1234)
+sres <- resids(model_logit) # for reproducibility
+p1 <- autoplot(sres, what = "covariate", x = trama$dose, xlab = "dose") + 
+  coord_fixed(ratio = 0.3)  + # shrink the plot 
+  labs(title = "Surrogate Residuals vs Covariate", x = "Dose")
+p2 <- autoplot(sres, what = "qq", distribution = qnorm) + 
+  coord_fixed(ratio = 0.39) + 
+  labs(title = "Normal Q-Q")
+
+grid.arrange(p1, p2, ncol = 2) 
+```
+
+## Thank you!
+
+Multinomial GLMs for Multinomial Response with An Example of Brain Injury Recovery Stages
+
+Frances Lin
+
+MS student, Dept. of Statistics, Oregon State University
+
